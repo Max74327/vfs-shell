@@ -1,0 +1,4 @@
+{
+  "vfs_path": "data/vfs-minimal.csv",
+  "startup_script": "scripts/startup-all-commands.sh"
+}
