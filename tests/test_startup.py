@@ -4,7 +4,7 @@ import pytest
 from src.startup import StartupError, read_script, run_startup
 
 
-class _FakeShell:
+class FakeShell:
     """Minimal shell stub that records the lines it receives."""
 
     def __init__(self, stop_after=None):
@@ -44,7 +44,7 @@ def test_run_startup_feeds_lines(tmp_path):
     """run_startup forwards every line to the shell."""
     path = tmp_path / "s.sh"
     path.write_text("ls\ncd\n", encoding="utf-8")
-    shell = _FakeShell()
+    shell = FakeShell()
     assert run_startup(shell, str(path)) is True
     assert shell.lines == ["ls", "cd"]
 
@@ -53,6 +53,6 @@ def test_run_startup_stops_on_exit(tmp_path):
     """run_startup stops as soon as the shell returns False."""
     path = tmp_path / "s.sh"
     path.write_text("ls\nexit\ncd\n", encoding="utf-8")
-    shell = _FakeShell(stop_after="exit")
+    shell = FakeShell(stop_after="exit")
     assert run_startup(shell, str(path)) is False
     assert shell.lines == ["ls", "exit"]

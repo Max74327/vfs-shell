@@ -12,7 +12,7 @@ class ParseError(Exception):
 
 
 @dataclass
-class _State:
+class State:
     """Состояние парсера при посимвольном обходе строки."""
 
     tokens: list = field(default_factory=list)
@@ -23,7 +23,7 @@ class _State:
     started: bool = False
 
 
-def _flush(state: _State) -> None:
+def _flush(state: State) -> None:
     """Сохраняет накопленный буфер как отдельный токен."""
     if state.started:
         state.tokens.append("".join(state.buf))
@@ -31,14 +31,14 @@ def _flush(state: _State) -> None:
         state.started = False
 
 
-def _on_escape(state: _State, ch: str) -> None:
+def _on_escape(state: State, ch: str) -> None:
     """Обрабатывает символ, экранированный обратным слешем."""
     state.buf.append(ch)
     state.escape = False
     state.started = True
 
 
-def _on_quote(state: _State, ch: str) -> None:
+def _on_quote(state: State, ch: str) -> None:
     """Переключает флаг одинарных или двойных кавычек."""
     if ch == SINGLE_QUOTE and not state.in_double:
         state.in_single = not state.in_single
@@ -47,18 +47,18 @@ def _on_quote(state: _State, ch: str) -> None:
     state.started = True
 
 
-def _on_space(state: _State) -> None:
+def _on_space(state: State) -> None:
     """Завершает текущий токен при встрече разделителя."""
     _flush(state)
 
 
-def _on_char(state: _State, ch: str) -> None:
+def _on_char(state: State, ch: str) -> None:
     """Добавляет обычный символ в текущий токен."""
     state.buf.append(ch)
     state.started = True
 
 
-def _handle(state: _State, ch: str) -> None:
+def _handle(state: State, ch: str) -> None:
     """Маршрутизирует один символ в соответствующий обработчик."""
     if state.escape:
         _on_escape(state, ch)
@@ -77,7 +77,7 @@ def _handle(state: _State, ch: str) -> None:
     _on_char(state, ch)
 
 
-def _finalize(state: _State) -> list:
+def _finalize(state: State) -> list:
     """Проверяет корректность состояния и возвращает токены."""
     if state.escape:
         state.buf.append(BACKSLASH)
@@ -98,7 +98,7 @@ def tokenize(line: str) -> list:
       * соседние фрагменты склеиваются: ab"cd"ef -> abcdef;
       * незакрытая кавычка приводит к ParseError.
     """
-    state = _State()
+    state = State()
     for ch in line:
         _handle(state, ch)
     return _finalize(state)

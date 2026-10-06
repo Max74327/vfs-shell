@@ -38,7 +38,7 @@ class HistoryLineEdit(QLineEdit):
             self.history.append(line)
         self.hist_idx = len(self.history)
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:
+    def key_press_event(self, event: QKeyEvent) -> None:
         """Handles arrow keys for history navigation."""
         key = event.key()
         if key == Qt.Key.Key_Up:
