@@ -73,8 +73,12 @@ class Vfs:
     def mkdir(self, path: str, mode: int = DEFAULT_DIR_MODE) -> Node:
         """Creates a directory (and its parents) if missing."""
         norm = self.normalize(path)
+        if norm == ROOT_PATH:
+            return self.root
         node = self.root
         for part in norm.strip(ROOT_PATH).split(ROOT_PATH):
+            if not part:
+                continue
             child = node.children.get(part)
             if child is None:
                 child = Node(name=part, is_dir=True, mode=mode,
@@ -140,10 +144,12 @@ class Vfs:
 def _decode_content(raw: str) -> tuple:
     """Decodes a CSV content cell; returns (text, binary_flag)."""
     if raw.startswith(BASE64_PREFIX):
+        payload = raw[len(BASE64_PREFIX):]
         try:
-            data = base64.b64decode(raw[len(BASE64_PREFIX):])
+            data = base64.b64decode(payload, validate=True)
         except Exception as exc:
-            raise VfsError(f"invalid base64 content: {exc}") from exc
+            raise VfsError(
+                f"invalid base64 content: {exc}") from exc
         return data.decode("latin-1"), True
     return raw, False
 

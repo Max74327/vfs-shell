@@ -40,11 +40,10 @@ def _pick_frontend(cfg):
 def _load_vfs(cfg, frontend):
     """Loads the VFS; on error reports and returns None."""
     try:
-        vfs = load_vfs(cfg.vfs_path)
+        return load_vfs(cfg.vfs_path)
     except VfsError as exc:
         frontend.write(f"VFS error: {exc}")
         return None
-    return vfs
 
 
 def _run_startup_script(frontend, cfg) -> bool:
@@ -74,14 +73,13 @@ def main(argv=None) -> int:
 
     vfs = _load_vfs(cfg, frontend)
     if vfs is None:
-        # Load failed: keep the shell alive with an empty VFS.
         from src.vfs import Vfs
         vfs = Vfs()
+        shell.write("VFS empty: running without files")
+    else:
+        shell.write(f"VFS loaded: {vfs.size()} nodes")
 
     shell.attach_vfs(vfs)
-    shell.write(f"VFS loaded: {cfg.vfs_path or '(empty)'} "
-                f"({vfs.size()} nodes)")
-
     shell.banner()
 
     if not _run_startup_script(frontend, cfg):
