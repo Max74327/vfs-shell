@@ -1,0 +1,12 @@
+path,type,content,mode
+/home,dir,,755
+/home/user,dir,,755
+/home/user/projects,dir,,755
+/home/user/projects/vfs-shell,dir,,755
+/home/user/projects/vfs-shell/src,dir,,755
+/home/user/projects/vfs-shell/src/main.py,file,print('hi'),644
+/home/user/projects/vfs-shell/README.md,file,# VFS Shell,644
+/home/user/projects/vfs-shell/logo.png,file,base64:iVBORw0KGgo=,644
+/var,dir,,755
+/var/log,dir,,755
+/var/log/app.log,file,startup ok,644

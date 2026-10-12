@@ -1,0 +1,8 @@
+path,type,content,mode
+/home,dir,,755
+/home/user,dir,,755
+/home/user/notes.txt,file,hello world,644
+/home/user/readme.md,file,# VFS Shell,644
+/home/user/.bashrc,file,export PS1='$ ',600
+/tmp,dir,,1777
+/tmp/empty,file,,644

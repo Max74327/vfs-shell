@@ -1,0 +1,3 @@
+path,type,content,mode
+/etc,dir,,755
+/etc/hostname,file,vfs20,644
