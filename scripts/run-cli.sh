@@ -3,4 +3,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 exec python3 -m src.main --cli \
+    --vfs data/vfs-nested.csv \
     --startup scripts/startup-all-commands.sh
