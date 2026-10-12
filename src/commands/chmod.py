@@ -22,9 +22,20 @@ def cmd_chmod(args: list, ctx: CommandContext) -> CommandResult:
     if len(args) < 2:
         raise CommandError("chmod: missing operand")
     mode_expr, *targets = args
+    # Validate the mode before touching any target.
+    _validate_mode(mode_expr)
     for target in targets:
         _apply_to_target(mode_expr, target, ctx)
     return CommandResult()
+
+
+def _validate_mode(expr: str) -> None:
+    """Raises CommandError for a mode that cannot be parsed."""
+    if OCTAL_MODE.match(expr):
+        return
+    if SYMBOLIC_MODE.match(expr):
+        return
+    raise CommandError(f"chmod: invalid mode: {expr}")
 
 
 def _apply_to_target(expr: str, target: str, ctx: CommandContext) -> None:
