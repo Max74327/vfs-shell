@@ -28,6 +28,7 @@ usage() {
   clean            удалить __pycache__ и .pytest_cache
   help             показать эту справку
   docs             сгенерировать HTML-документацию (pdoc)
+  setup            создать .venv и установить зависимости
 EOF
 }
 
@@ -62,6 +63,7 @@ main() {
         lint)    run_lint ;;
         clean)   run_clean ;;
         docs) exec "$PYTHON" -m pdoc -o docs src ;;
+        setup) exec ./scripts/setup.sh ;;
         help|-h|--help) usage ;;
         *)
             echo "Неизвестная команда: $cmd" >&2
