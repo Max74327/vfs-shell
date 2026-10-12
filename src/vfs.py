@@ -140,6 +140,85 @@ class Vfs:
         """Recursively counts nodes below the given node."""
         return sum(1 + self._count(c) for c in node.children.values())
 
+    def move(self, src: str, dst: str) -> Node:
+        """
+        Moves or renames a node.
+
+        dst may be:
+          * an existing directory — the node is moved into it;
+          * a non-existing path — the node is renamed/moved to that path.
+
+        The root cannot be moved. Moving a directory into itself or into
+        one of its descendants is refused.
+        """
+        src_norm = self.normalize(src)
+        if src_norm == ROOT_PATH:
+            raise VfsError("cannot move the root directory")
+
+        node = self.find(src_norm)
+        dst_norm = self.normalize(dst)
+
+        # If destination is an existing directory, move inside it.
+        try:
+            existing = self.find(dst_norm)
+            if existing.is_dir:
+                dst_norm = self.normalize(dst_norm + "/" + node.name)
+        except VfsError:
+            pass
+
+        if src_norm == dst_norm:
+            return node
+
+        if node.is_dir:
+            self._reject_move_into_self(node, dst_norm)
+
+        # Remove existing target if it is a file.
+        try:
+            target = self.find(dst_norm)
+            if target.is_dir:
+                raise VfsError(f"destination is a directory: {dst}")
+            self.unlink(dst_norm)
+        except VfsError:
+            pass
+
+        # Detach from the old parent.
+        old_parent = node.parent
+        del old_parent.children[node.name]
+
+        # Attach to the new parent.
+        parent_path, _, new_name = dst_norm.rpartition(ROOT_PATH)
+        new_parent = self.mkdir(parent_path or ROOT_PATH)
+        node.name = new_name
+        node.parent = new_parent
+        new_parent.children[new_name] = node
+        return node
+
+    def _reject_move_into_self(self, node: Node, dst_norm: str) -> None:
+        """Raises if dst is inside the source subtree."""
+        src_path = self.path_of(node)
+        if dst_norm == src_path or dst_norm.startswith(src_path + "/"):
+            raise VfsError("cannot move a directory into itself")
+
+    def path_of(self, node: Node) -> str:
+        """Returns the absolute path of a node."""
+        parts = []
+        cur = node
+        while cur.parent is not None:
+            parts.append(cur.name)
+            cur = cur.parent
+        return ROOT_PATH + "/".join(reversed(parts))
+
+    def unlink(self, path: str) -> None:
+        """Removes a node from its parent. Root cannot be removed."""
+        norm = self.normalize(path)
+        if norm == ROOT_PATH:
+            raise VfsError("cannot remove the root directory")
+        node = self.find(norm)
+        parent = node.parent
+        if parent is None:
+            raise VfsError(f"cannot remove: {path}")
+        del parent.children[node.name]
+
 
 def _decode_content(raw: str) -> tuple:
     """Decodes a CSV content cell; returns (text, binary_flag)."""
@@ -210,86 +289,3 @@ def load_vfs(path: str) -> Vfs:
     except csv.Error as exc:
         raise VfsError(f"CSV parse error: {exc}") from exc
     return vfs
-
-
-def unlink(self, path: str) -> None:
-    """Removes a node from its parent. Root cannot be removed."""
-    norm = self.normalize(path)
-    if norm == ROOT_PATH:
-        raise VfsError("cannot remove the root directory")
-    node = self.find(norm)
-    parent = node.parent
-    if parent is None:
-        raise VfsError(f"cannot remove: {path}")
-    del parent.children[node.name]
-
-
-def move(self, src: str, dst: str) -> Node:
-    """
-    Moves or renames a node.
-
-    dst may be:
-      * an existing directory — the node is moved into it;
-      * a non-existing path — the node is renamed/moved to that path.
-
-    The root cannot be moved. Moving a directory into itself or into
-    one of its descendants is refused.
-    """
-    src_norm = self.normalize(src)
-    if src_norm == ROOT_PATH:
-        raise VfsError("cannot move the root directory")
-
-    node = self.find(src_norm)
-    dst_norm = self.normalize(dst)
-
-    # If destination is an existing directory, move inside it.
-    try:
-        existing = self.find(dst_norm)
-        if existing.is_dir:
-            dst_norm = self.normalize(dst_norm + "/" + node.name)
-    except VfsError:
-        pass
-
-    if src_norm == dst_norm:
-        return node
-
-    if node.is_dir:
-        self._reject_move_into_self(node, dst_norm)
-
-    # Remove existing target if it is a file.
-    try:
-        target = self.find(dst_norm)
-        if target.is_dir:
-            raise VfsError(f"destination is a directory: {dst}")
-        self.unlink(dst_norm)
-    except VfsError:
-        pass
-
-    # Detach from the old parent.
-    old_parent = node.parent
-    del old_parent.children[node.name]
-
-    # Attach to the new parent.
-    parent_path, _, new_name = dst_norm.rpartition(ROOT_PATH)
-    new_parent = self.mkdir(parent_path or ROOT_PATH)
-    node.name = new_name
-    node.parent = new_parent
-    new_parent.children[new_name] = node
-    return node
-
-
-def _reject_move_into_self(self, node: Node, dst_norm: str) -> None:
-    """Raises if dst is inside the source subtree."""
-    src_path = self.path_of(node)
-    if dst_norm == src_path or dst_norm.startswith(src_path + "/"):
-        raise VfsError("cannot move a directory into itself")
-
-
-def path_of(self, node: Node) -> str:
-    """Returns the absolute path of a node."""
-    parts = []
-    cur = node
-    while cur.parent is not None:
-        parts.append(cur.name)
-        cur = cur.parent
-    return ROOT_PATH + "/".join(reversed(parts))
