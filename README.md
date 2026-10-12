@@ -4,6 +4,9 @@ Emulator of a UNIX-like command shell with an in-memory virtual file
 system (VFS), a PyQt6 GUI, a console frontend, JSON configuration and
 startup scripts.
 
+The project is developed in stages (see [Roadmap](#7-roadmap));
+each stage is committed separately following Conventional Commits.
+
 ---
 
 ## 1. Overview
@@ -18,7 +21,8 @@ VFS Shell reproduces the look and feel of a UNIX-like command line:
   same core;
 * configuration via a JSON file and command-line flags (stage 2);
 * startup scripts that are executed at launch, printing both the
-  input and the output to imitate a dialogue (stage 2).
+  input and the output to imitate a dialogue (stage 2);
+* core commands `ls`, `cd`, `who`, `head`, `tree` (stage 4).
 
 The emulator never modifies the physical file system: every operation
 on files and directories happens in memory.
@@ -36,15 +40,15 @@ on files and directories happens in memory.
    │      (src/shell.py)      │
    └───┬──────────┬───────────┘
        │          │
- ┌─────▼───┐  ┌───▼───────┐
- │ Parser  │  │ Commands  │
- │parser.py│  │commands.py│
- └─────────┘  └────┬──────┘
-                   │
-              ┌────▼────┐
-              │   VFS   │  in-memory tree, loaded from CSV
-              │ vfs.py  │  (stage 3)
-              └─────────┘
+ ┌─────▼────┐  ┌──▼──────────┐
+ │ Parser   │  │  Commands   │
+ │parser.py │  │ commands/   │
+ └──────────┘  └────┬────────┘
+                    │
+               ┌────▼────┐
+               │   VFS   │  in-memory tree, loaded from CSV
+               │ vfs.py  │  (stage 3)
+               └─────────┘
 
    Configuration (stage 2): src/config.py, src/startup.py
 ```
@@ -54,6 +58,9 @@ on files and directories happens in memory.
   either a graphical (PyQt6) or a console REPL.
 * **VFS** — a tree of nodes (`Node`) kept in memory; loaded once from
   a CSV file, mutated only in memory (stage 3).
+* **Commands** — a package `src/commands/` with one module per
+  command; each command receives a `CommandContext` and returns a
+  `CommandResult`.
 * **Configuration** — CLI flags + JSON file, resolved with a strict
   priority rule (file wins over CLI).
 
@@ -83,11 +90,19 @@ vfs_shell/
 │   ├── __init__.py
 │   ├── main.py                   # entry point, wires config and frontends
 │   ├── parser.py                 # quote-aware tokenizer
-│   ├── shell.py                  # REPL core
-│   ├── commands.py               # command implementations
+│   ├── shell.py                  # REPL core, tracks cwd
 │   ├── config.py                 # CLI + JSON configuration
 │   ├── startup.py                # startup script runner
 │   ├── vfs.py                    # in-memory VFS (stage 3)
+│   ├── commands/                 # command package (stage 4)
+│   │   ├── __init__.py           # COMMANDS registry
+│   │   ├── base.py               # CommandContext, CommandResult, helpers
+│   │   ├── ls.py
+│   │   ├── cd.py
+│   │   ├── who.py
+│   │   ├── head.py
+│   │   ├── tree.py
+│   │   └── exit.py
 │   └── frontends/
 │       ├── __init__.py
 │       ├── base.py               # Frontend abstraction
@@ -96,11 +111,15 @@ vfs_shell/
 └── tests/
     ├── __init__.py
     ├── test_parser.py
-    ├── test_commands.py
     ├── test_shell.py
     ├── test_config.py
     ├── test_startup.py
-    └── test_vfs.py
+    ├── test_vfs.py
+    ├── test_ls.py
+    ├── test_cd.py
+    ├── test_who.py
+    ├── test_head.py
+    └── test_tree.py
 ```
 
 ---
@@ -120,27 +139,21 @@ vfs_shell/
 * `parse(line)` — returns `(command_name, arguments)`; for an empty
   line — `(None, [])`.
 
-### 2.2. `src/commands.py`
-
-* `cmd_ls(args)` — prints its name and the received arguments.
-* `cmd_cd(args)` — prints the target directory; with more than one
-  argument returns an error message.
-* `cmd_exit(args)` — returns the `EXIT_SENTINEL` marker.
-* `COMMANDS` — a dict mapping command names to handlers.
-
-### 2.3. `src/shell.py`
+### 2.2. `src/shell.py`
 
 Class `Shell` — the REPL core:
 
-* `Shell(frontend)` — constructor.
-* `attach_vfs(vfs)` — binds the loaded VFS to the shell.
+* `Shell(frontend)` — constructor; starts with an empty VFS and
+  `cwd = "/"`.
+* `attach_vfs(vfs)` — replaces the empty VFS with a loaded one.
 * `prompt` — property exposing the frontend prompt.
 * `write(text)` — proxies output to the frontend.
 * `banner()` — prints the greeting.
-* `process(line)` — processes one line; returns `False` when the
-  shell should terminate.
+* `process(line)` — parses the line, dispatches the command through
+  `CommandContext`, applies `CommandResult` (updates `cwd`, terminates
+  when requested), and returns `False` when the shell should stop.
 
-### 2.4. `src/config.py`
+### 2.3. `src/config.py`
 
 * `Config` — dataclass with resolved settings:
   * `vfs_path`, `startup_script`, `config_path`, `cli_mode`;
@@ -153,16 +166,15 @@ Class `Shell` — the REPL core:
   `DEFAULT_VFS_PATH = "data/vfs-minimal.csv"` when nothing is given.
 * `format_debug(cfg)` — human-readable dump printed at startup.
 
-### 2.5. `src/startup.py`
+### 2.4. `src/startup.py`
 
 * `StartupError` — raised when the script cannot be read.
 * `read_script(path)` — reads a startup script, strips comments
   (`#` and `#!`) and blank lines.
-* `run_startup(shell, path)` — feeds every line to the shell; prints
-  both the input and the output, imitating a dialogue. Returns
-  `False` if the shell terminated.
+* `run_startup(shell, path)` — echoes each line and feeds it to the
+  shell; returns `False` if the shell terminated.
 
-### 2.6. `src/vfs.py`
+### 2.5. `src/vfs.py`
 
 * `Node` — a single node in the VFS tree:
   * `name` — segment name, empty for the root;
@@ -174,25 +186,20 @@ Class `Shell` — the REPL core:
   * `parent` — back-reference to the parent `Node` (or `None` for
     the root).
 * `Vfs` — in-memory tree with a single root:
-  * `normalize(path)` — returns an absolute path, collapses repeated
-    slashes, resolves `.` and `..`, and always starts with `/`;
+  * `normalize(path)` — absolute path, resolves `.` and `..`;
   * `find(path)` — returns the `Node` at `path` or raises `VfsError`;
   * `mkdir(path, mode)` — creates a directory and any missing parents;
     a no-op for the root; never creates an empty-named child;
   * `create_file(path, content, mode, binary)` — creates or replaces
-    a file at `path`, creating parents as needed;
-  * `listdir(path)` — returns children sorted directories-first, then
-    alphabetically; raises `VfsError` if the path is not a directory;
-  * `depth(path)` — maximum nesting depth below a node; `0` for a
-    file or an empty directory;
-  * `size()` — total number of nodes below the root (root itself is
-    not counted).
+    a file, creating parents as needed;
+  * `listdir(path)` — sorted children, directories first;
+  * `depth(path)` — maximum nesting depth below a node;
+  * `size()` — total number of nodes below the root.
 * `VfsError` — raised on any load or navigation problem.
-* `load_vfs(path)` — loads a VFS from a CSV file; raises `VfsError`
-  when the file is missing, the header is incomplete, the mode is not
-  octal, the base64 payload is malformed, or a node cannot be created.
+* `load_vfs(path)` — loads a VFS from a CSV file with strict
+  validation.
 
-### 2.7. CSV format
+### 2.6. CSV format
 
 Columns (header is mandatory):
 
@@ -206,28 +213,52 @@ Columns (header is mandatory):
 Rules:
 
 * Nesting is encoded by the `path` column; intermediate directories
-  are created automatically. It is legal to describe only leaves
-  (e.g. `/a/b/c/d.txt`) and let the loader build the chain.
+  are created automatically.
 * Blank lines and lines whose `path` starts with `#` are ignored.
 * Creating a file at an existing path replaces the previous node;
   creating a directory at an existing path reuses it.
-* Invalid values raise `VfsError` with a human-readable message:
-  * missing required columns in the header;
-  * unknown `type` (anything other than `file` or `dir`);
-  * non-octal `mode`;
-  * malformed base64 payload — validated strictly, so `***` and other
-    non-alphabet characters are rejected instead of being silently
-    dropped;
-  * a file path where a directory with the same name already exists.
-* Binary content is marked with a `base64:` prefix. After decoding,
-  the bytes are stored as a Latin-1 string in `Node.content` and the
-  `Node.binary` flag is set to `True`. `base64.b64decode` is called
-  with `validate=True`, so garbage after the prefix is an error and
-  not an empty buffer.
+* Invalid values raise `VfsError`: missing columns, unknown `type`,
+  non-octal `mode`, malformed base64 (validated strictly), file vs
+  directory conflicts.
+* Binary content is marked with `base64:` and stored as a Latin-1
+  string with `Node.binary = True`.
 * `mode` accepts special bits — setuid (`4xxx`), setgid (`2xxx`) and
-  sticky (`1xxx`) — for example `1777` for a shared temporary
-  directory. The value is stored as an integer in `Node.mode` and
-  rendered by future commands such as `ls -l` and `chmod`.
+  sticky (`1xxx`) — e.g. `1777` for a shared temporary directory.
+
+### 2.7. `src/commands/`
+
+Package of commands, one module per command. Every command has the
+signature `cmd_x(args: list, ctx: CommandContext) -> CommandResult`.
+
+Common types in `src/commands/base.py`:
+
+* `CommandContext` — carries `vfs` and `cwd`.
+* `CommandResult` — carries `output`, optional `new_cwd`, optional
+  `exit` flag.
+* `CommandError` — user-visible error raised by a command.
+* Helpers: `parse_flags`, `resolve_path`, `human_mode`,
+  `format_mode`.
+
+Commands:
+
+* **`ls`** (`ls.py`) — lists files and directories.
+  * `-l` — long format with mode, size and name;
+  * `-a` — include dotfiles;
+  * `-1` — one entry per line.
+* **`cd`** (`cd.py`) — changes the current directory; supports
+  absolute and relative paths; `cd` with no arguments goes to `/`.
+* **`who`** (`who.py`) — prints user, host, current directory and
+  shell name; accepts no arguments.
+* **`head`** (`head.py`) — prints the first lines of a file.
+  * `-n NUM` — number of lines (default 10).
+  * Rejects directories and binary files.
+* **`tree`** (`tree.py`) — prints a subtree as ASCII art with a
+  summary line.
+  * `-L NUM` — limit the depth.
+* **`exit`** (`exit.py`) — signals the shell to terminate.
+
+`COMMANDS` — dict mapping command names to handlers, defined in
+`src/commands/__init__.py`.
 
 ### 2.8. `src/frontends/base.py`
 
@@ -240,7 +271,8 @@ Abstract class `Frontend`:
 
 The frontend is responsible only for input and output. Startup
 messages (banner, debug dump, VFS report) are printed once by
-`main.py`.
+`main.py`. Echo of the entered line is a frontend concern: the
+console relies on the terminal, the GUI prints it explicitly.
 
 ### 2.9. `src/frontends/cli.py`
 
@@ -255,6 +287,7 @@ messages (banner, debug dump, VFS report) are printed once by
 * `QPlainTextEdit` for output (read-only, monospaced);
 * `QLineEdit` subclass `HistoryLineEdit` for input;
 * command history via ↑ / ↓;
+* echoes the input line into the output area before dispatch;
 * native Wayland support through the Qt platform plugin.
 
 ### 2.11. `src/main.py`
@@ -287,10 +320,9 @@ In `src/vfs.py`:
 * `DEFAULT_FILE_MODE = 0o644`, `DEFAULT_DIR_MODE = 0o755`;
 * `ROOT_PATH = "/"`.
 
-In `src/commands.py`:
+In `src/commands/head.py`:
 
-* `MAX_ARGS_CD = 1`;
-* `DEFAULT_CD_TARGET = "~"`.
+* `DEFAULT_LINES = 10`.
 
 ---
 
@@ -338,8 +370,8 @@ Origins: `file`, `cli`, `default`.
 * Executed at launch, one line at a time.
 * Lines starting with `#` (including `#!`) and blank lines are
   skipped.
-* Both the input line and the output are printed, imitating an
-  interactive session.
+* Each input line is echoed, then the command output follows —
+  imitating an interactive session.
 
 ### 3.5. VFS CSV datasets
 
@@ -417,31 +449,37 @@ Host-side launchers in `scripts/`:
 
 ## 6. Usage examples
 
-### 6.1. REPL basics
+### 6.1. Basic commands
 
 ```
-user@vfs20:$ ls
-ls: stub command
-  arguments received: 0
-  arguments: []
-user@vfs20:$ ls -l /home "my folder"
-ls: stub command
-  arguments received: 3
-  arguments: ['-l', '/home', 'my folder']
-user@vfs20:$ cd
-cd: stub command
-  target directory: '~'
-user@vfs20:$ cd "My Documents"
-cd: stub command
-  target directory: 'My Documents'
+user@vfs20:$ ls /
+home  var
+user@vfs20:$ ls -l /home/user/projects/vfs-shell
+drwxr-xr-x       0  src
+-rw-r--r--      11  README.md
+-rw-r--r--       8  logo.png
+user@vfs20:$ cd /home/user/projects/vfs-shell
+user@vfs20:$ head -n 2 README.md
+# VFS Shell
+user@vfs20:$ tree -L 2 /home
+/home
+└── user
+    └── projects
+
+2 directories, 0 files
+user@vfs20:$ who
+max@Max
+  cwd:   /home/user/projects/vfs-shell
+  shell: vfs-shell
 ```
 
 ### 6.2. Error handling
 
 ```
 user@vfs20:$ cd a b
-cd: too many arguments (received 2)
-  arguments: ['a', 'b']
+cd: too many arguments
+user@vfs20:$ cd /no/such/path
+cd: /no/such/path: no such path: /no/such/path
 user@vfs20:$ ls "unterminated
 Parse error: unterminated quote
 user@vfs20:$ foo bar
@@ -452,15 +490,25 @@ Bye.
 
 ### 6.3. Startup script
 
-`scripts/startup-all-commands.sh`:
+`scripts/startup-all-commands.sh` covers all four stages:
 
 ```bash
-# Startup script for stage 2 testing.
+# Startup script for stage 4 testing.
 ls
-ls -l /home "my folder"
-cd
-cd "My Documents"
+ls -l /home/user
+ls -a /
+cd /
+cd /home/user
+cd "projects"
+cd /no/such/dir
 cd a b
+who
+head /home/user/notes.txt
+head -n 2 /home/user/notes.txt
+head /home/user
+tree /
+tree -L 2 /home
+tree /no/such/path
 ls "unterminated
 foo bar
 exit
@@ -546,13 +594,13 @@ user@vfs20:$
 
 ## 7. Roadmap
 
-| Stage | Goal                                                | Status  |
-|-------|-----------------------------------------------------|---------|
-| 1     | REPL: GUI, parser, stubs, `exit`                    | done    |
-| 2     | Configuration: CLI + JSON + startup scripts         | done    |
-| 3     | VFS: in-memory tree loaded from CSV                 | done    |
-| 4     | Core commands: `ls`, `cd`, `who`, `head`, `tree`    | planned |
-| 5     | Extra commands: `mv`, `chmod`                       | planned |
+| Stage | Goal                                                | Status  | Tag |
+|-------|-----------------------------------------------------|---------|-----|
+| 1     | REPL: GUI, parser, stubs, `exit`                    | done    | `stage-1` |
+| 2     | Configuration: CLI + JSON + startup scripts         | done    | `stage-2` |
+| 3     | VFS: in-memory tree loaded from CSV                 | done    | `stage-3` |
+| 4     | Core commands: `ls`, `cd`, `who`, `head`, `tree`    | done    | `stage-4` |
+| 5     | Extra commands: `mv`, `chmod`                       | planned | — |
 
 Each stage is committed separately using Conventional Commits, e.g.:
 
@@ -570,6 +618,15 @@ feat(main): load VFS at startup and report errors
 chore(data): add minimal, several-files and nested VFS datasets
 test(vfs): cover loading, navigation and error handling
 docs: describe VFS format, datasets and error handling
+refactor(commands): move commands into a package
+feat(commands): implement ls with -l, -a and -1 flags
+feat(commands): implement cd with relative and absolute paths
+feat(commands): add who command
+feat(commands): add head with -n flag and binary guard
+feat(commands): add tree with -L depth limit
+feat(shell): track cwd and dispatch through CommandContext
+test(commands): cover ls, cd, who, head and tree
+docs: describe stage 4 commands and their flags
 ```
 
 ---
@@ -586,7 +643,9 @@ docs: describe VFS format, datasets and error handling
 * No magic numbers in comparisons; named constants everywhere.
 * The banner and startup diagnostics are emitted once, from
   `main.py`. Frontends must not call `Shell.banner()` themselves.
-* Commit messages follow Conventional Commits.
+* Echo of the entered line is a frontend concern: the console relies
+  on the terminal, the GUI prints it explicitly.
+* Each completed stage is tagged `stage-N` (`stage-1`, `stage-2`, …).
 
 ---
 
