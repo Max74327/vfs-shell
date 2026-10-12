@@ -445,6 +445,7 @@ to the console frontend.
 ./run.sh cli      # console mode, no config
 ./run.sh test     # run pytest
 ./run.sh lint     # pycodestyle --max-line-length=80 src tests
+./run.sh docs     # generate HTML documentation with pdoc into docs/
 ./run.sh clean    # remove __pycache__ and .pytest_cache
 ./run.sh help     # usage message
 ```

@@ -27,6 +27,7 @@ usage() {
   lint             проверить PEP8 (pycodestyle, max-line-length=80)
   clean            удалить __pycache__ и .pytest_cache
   help             показать эту справку
+  docs             сгенерировать HTML-документацию (pdoc)
 EOF
 }
 
@@ -60,6 +61,7 @@ main() {
         test)    run_tests ;;
         lint)    run_lint ;;
         clean)   run_clean ;;
+        docs) exec "$PYTHON" -m pdoc -o docs src ;;
         help|-h|--help) usage ;;
         *)
             echo "Неизвестная команда: $cmd" >&2
