@@ -159,15 +159,6 @@ def test_load_invalid_mode_raises(tmp_path):
         load_vfs(path)
 
 
-def test_load_invalid_base64_raises(tmp_path):
-    """Invalid base64 payload raises VfsError."""
-    path = _write(tmp_path,
-                  "path,type,content,mode\n"
-                  "/x,file,base64:***,644\n")
-    with pytest.raises(VfsError):
-        load_vfs(path)
-
-
 def test_load_shipped_datasets():
     """All shipped datasets load without errors."""
     for name in ("vfs-minimal.csv",
@@ -181,3 +172,28 @@ def test_nested_depth_at_least_three():
     """The nested dataset really has depth ≥ 3."""
     vfs = load_vfs("data/vfs-nested.csv")
     assert vfs.depth() >= 3
+
+
+def test_mkdir_root_does_not_add_child():
+    """mkdir('/') must not create an empty-named child."""
+    vfs = Vfs()
+    vfs.mkdir("/")
+    assert vfs.root.children == {}
+    assert vfs.size() == 0
+
+
+def test_create_file_at_root_yields_single_node():
+    """A single file at the root produces exactly one node."""
+    vfs = Vfs()
+    vfs.create_file("/x", content="")
+    assert vfs.size() == 1
+    assert list(vfs.root.children.keys()) == ["x"]
+
+
+def test_invalid_base64_raises(tmp_path):
+    """Garbage after base64: prefix is a load error."""
+    path = _write(tmp_path,
+                  "path,type,content,mode\n"
+                  "/x,file,base64:***,644\n")
+    with pytest.raises(VfsError):
+        load_vfs(path)

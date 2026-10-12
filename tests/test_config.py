@@ -15,9 +15,10 @@ def _write_config(tmp_path, payload):
 
 
 def test_defaults_when_nothing_given():
-    """No CLI flags and no config yields empty paths."""
+    """No CLI flags and no config falls back to the default VFS."""
     cfg = resolve_config([])
-    assert cfg.vfs_path == ""
+    assert cfg.vfs_path == "data/vfs-minimal.csv"
+    assert cfg.sources["vfs_path"] == "default"
     assert cfg.startup_script == ""
     assert cfg.cli_mode is False
 
