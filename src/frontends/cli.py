@@ -14,7 +14,6 @@ class CliFrontend(Frontend):
 
     def run(self) -> None:
         """Runs the input loop until exit or EOF."""
-        self.shell.banner()
         try:
             while True:
                 try:

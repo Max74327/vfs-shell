@@ -108,7 +108,6 @@ class GuiFrontend(Frontend):
 
     def run(self) -> None:
         """Shows the window and enters the Qt event loop."""
-        self.shell.banner()
         self.window.show()
         self.window.raise_()
         self.window.activateWindow()
