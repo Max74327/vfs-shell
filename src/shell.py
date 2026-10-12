@@ -1,4 +1,4 @@
-"""Shell core: parsing, command dispatch, output via Frontend."""
+"""Shell core: parsing, dispatch, output via a Frontend."""
 from src.parser import parse, ParseError
 from src.commands import COMMANDS, EXIT_SENTINEL
 from src.frontends.base import Frontend
@@ -10,6 +10,11 @@ class Shell:
     def __init__(self, frontend: Frontend):
         """Creates the core on top of the given frontend."""
         self.fe = frontend
+        self.vfs = None
+
+    def attach_vfs(self, vfs) -> None:
+        """Attaches the loaded VFS to the shell."""
+        self.vfs = vfs
 
     @property
     def prompt(self) -> str:
@@ -26,11 +31,7 @@ class Shell:
         self.write("Type 'exit' to quit.\n")
 
     def process(self, line: str) -> bool:
-        """
-        Processes a single line.
-
-        Returns False if the shell is terminating, otherwise True.
-        """
+        """Processes one line; False means the shell should stop."""
         self.write(self.prompt + line)
         try:
             name, args = parse(line)
