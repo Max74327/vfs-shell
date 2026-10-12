@@ -26,8 +26,9 @@ def test_tree_depth_limit():
     vfs = Vfs()
     vfs.mkdir("/a/b/c")
     out = cmd_tree(["-L", "1", "/a"], _ctx(vfs)).output
-    assert "b" in out
-    assert "c" not in out
+    lines = out.splitlines()
+    assert any(line.strip().endswith(" b") for line in lines)
+    assert not any(line.strip().endswith(" c") for line in lines)
 
 
 def test_tree_missing_path_raises():

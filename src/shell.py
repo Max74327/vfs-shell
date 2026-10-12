@@ -4,6 +4,7 @@ from src.commands import (
     COMMANDS, CommandContext, CommandResult, CommandError,
 )
 from src.frontends.base import Frontend
+from src.vfs import Vfs
 
 ROOT_PATH = "/"
 
@@ -14,7 +15,7 @@ class Shell:
     def __init__(self, frontend: Frontend):
         """Creates the core on top of the given frontend."""
         self.fe = frontend
-        self.vfs = None
+        self.vfs = Vfs()
         self.cwd = ROOT_PATH
 
     def attach_vfs(self, vfs) -> None:

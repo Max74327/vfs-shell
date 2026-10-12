@@ -57,8 +57,8 @@ def test_exit_stops_shell():
 
 
 def test_ls_dispatch():
-    """ls is routed to the stub command."""
+    """ls is routed to the ls command and prints entries."""
     shell, fe = _make_shell()
-    shell.process('ls "a b"')
-    assert "ls: stub command" in fe.joined()
-    assert "'a b'" in fe.joined()
+    shell.vfs.mkdir("/home")
+    shell.process("ls /")
+    assert "home" in fe.joined()
