@@ -1,36 +1,32 @@
-# Startup script for stage 4 testing.
-# Covers all commands with valid and invalid inputs.
+# Startup script for stage 5 testing.
 
-# ls: basic, flags, hidden, long, error
-ls
+# ls / cd / who / head / tree (stage 4)
 ls /
-ls -l /home/user
-ls -a /home/user
-ls -l -a /
-ls /no/such/path
-ls "unterminated
-
-# cd: root, absolute, relative, error
 cd /
-cd /home/user
-cd "projects"
-cd /no/such/dir
-cd a b
-
-# who
+ls -l /home/user
 who
-who extra
-
-# head
-head /home/user/notes.txt
 head -n 2 /home/user/notes.txt
-head /home/user
-head /no/such/file
-
-# tree
-tree /
 tree -L 2 /home
-tree /no/such/path
+
+# mv: rename, move into a directory, error cases
+mv /home/user/notes.txt /home/user/notes.bak
+ls /home/user
+mv /home/user/notes.bak /tmp
+ls /tmp
+mv /home/user /home/user/projects
+cd a b
+mv /no/such/file /tmp
+
+# chmod: octal, symbolic, special bits, error cases
+chmod 600 /home/user/readme.md
+ls -l /home/user
+chmod u+x /home/user/readme.md
+ls -l /home/user
+chmod go-w /home/user/readme.md
+chmod 1777 /tmp
+ls -l /
+chmod 9x9 /home/user/readme.md
+chmod 644 /no/such/file
 
 # exit
 exit
