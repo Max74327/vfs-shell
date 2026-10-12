@@ -5,7 +5,7 @@ system (VFS), a PyQt6 GUI, a console frontend, JSON configuration and
 startup scripts.
 
 The project is developed in stages (see [Roadmap](#7-roadmap));
-each stage is committed separately following Conventional Commits.
+each stage is tagged `stage-N`.
 
 ---
 
@@ -22,7 +22,9 @@ VFS Shell reproduces the look and feel of a UNIX-like command line:
 * configuration via a JSON file and command-line flags (stage 2);
 * startup scripts that are executed at launch, printing both the
   input and the output to imitate a dialogue (stage 2);
-* core commands `ls`, `cd`, `who`, `head`, `tree` (stage 4).
+* core commands `ls`, `cd`, `who`, `head`, `tree` (stage 4);
+* extra commands `mv`, `chmod` that mutate the VFS in memory
+  (stage 5).
 
 The emulator never modifies the physical file system: every operation
 on files and directories happens in memory.
@@ -36,7 +38,7 @@ on files and directories happens in memory.
    └────────────┬─────────────┘
                 │ Frontend API (write / run / attach)
    ┌────────────▼─────────────┐
-   │          Shell           │   REPL, dispatch
+   │          Shell           │   REPL, dispatch, cwd
    │      (src/shell.py)      │
    └───┬──────────┬───────────┘
        │          │
@@ -57,7 +59,7 @@ on files and directories happens in memory.
 * **Frontends** — implement the `Frontend` interface and provide
   either a graphical (PyQt6) or a console REPL.
 * **VFS** — a tree of nodes (`Node`) kept in memory; loaded once from
-  a CSV file, mutated only in memory (stage 3).
+  a CSV file, mutated only in memory.
 * **Commands** — a package `src/commands/` with one module per
   command; each command receives a `CommandContext` and returns a
   `CommandResult`.
@@ -93,8 +95,8 @@ vfs_shell/
 │   ├── shell.py                  # REPL core, tracks cwd
 │   ├── config.py                 # CLI + JSON configuration
 │   ├── startup.py                # startup script runner
-│   ├── vfs.py                    # in-memory VFS (stage 3)
-│   ├── commands/                 # command package (stage 4)
+│   ├── vfs.py                    # in-memory VFS
+│   ├── commands/                 # command package
 │   │   ├── __init__.py           # COMMANDS registry
 │   │   ├── base.py               # CommandContext, CommandResult, helpers
 │   │   ├── ls.py
@@ -102,6 +104,8 @@ vfs_shell/
 │   │   ├── who.py
 │   │   ├── head.py
 │   │   ├── tree.py
+│   │   ├── mv.py
+│   │   ├── chmod.py
 │   │   └── exit.py
 │   └── frontends/
 │       ├── __init__.py
@@ -119,7 +123,9 @@ vfs_shell/
     ├── test_cd.py
     ├── test_who.py
     ├── test_head.py
-    └── test_tree.py
+    ├── test_tree.py
+    ├── test_mv.py
+    └── test_chmod.py
 ```
 
 ---
@@ -194,7 +200,12 @@ Class `Shell` — the REPL core:
     a file, creating parents as needed;
   * `listdir(path)` — sorted children, directories first;
   * `depth(path)` — maximum nesting depth below a node;
-  * `size()` — total number of nodes below the root.
+  * `size()` — total number of nodes below the root;
+  * `path_of(node)` — absolute path of a node;
+  * `unlink(path)` — removes a node from its parent; root cannot be
+    removed;
+  * `move(src, dst)` — moves or renames a node; refuses to move the
+    root and to move a directory into itself or a descendant.
 * `VfsError` — raised on any load or navigation problem.
 * `load_vfs(path)` — loads a VFS from a CSV file with strict
   validation.
@@ -250,11 +261,22 @@ Commands:
 * **`who`** (`who.py`) — prints user, host, current directory and
   shell name; accepts no arguments.
 * **`head`** (`head.py`) — prints the first lines of a file.
-  * `-n NUM` — number of lines (default 10).
-  * Rejects directories and binary files.
+  * `-n NUM` — number of lines (default 10);
+  * rejects directories and binary files.
 * **`tree`** (`tree.py`) — prints a subtree as ASCII art with a
   summary line.
   * `-L NUM` — limit the depth.
+* **`mv`** (`mv.py`) — moves or renames a file or directory.
+  * two operands: source and destination;
+  * if the destination is an existing directory, the source is moved
+    into it;
+  * refuses to move the root and to move a directory into itself or
+    into one of its descendants.
+* **`chmod`** (`chmod.py`) — changes mode bits.
+  * octal form: `644`, `755`, `1777`;
+  * symbolic form: `u+x`, `go-w`, `a=r`;
+  * mode is validated before any target is touched;
+  * special bits (setuid, setgid, sticky) are preserved.
 * **`exit`** (`exit.py`) — signals the shell to terminate.
 
 `COMMANDS` — dict mapping command names to handlers, defined in
@@ -323,6 +345,10 @@ In `src/vfs.py`:
 In `src/commands/head.py`:
 
 * `DEFAULT_LINES = 10`.
+
+In `src/commands/chmod.py`:
+
+* `MODE_MASK = 0o7777` — keeps the four low octal digits.
 
 ---
 
@@ -454,13 +480,11 @@ Host-side launchers in `scripts/`:
 ```
 user@vfs20:$ ls /
 home  var
-user@vfs20:$ ls -l /home/user/projects/vfs-shell
-drwxr-xr-x       0  src
--rw-r--r--      11  README.md
--rw-r--r--       8  logo.png
-user@vfs20:$ cd /home/user/projects/vfs-shell
-user@vfs20:$ head -n 2 README.md
-# VFS Shell
+user@vfs20:$ ls -l /home/user
+drwxr-xr-x       0  projects
+user@vfs20:$ cd /home/user
+user@vfs20:$ head -n 2 /var/log/app.log
+startup ok
 user@vfs20:$ tree -L 2 /home
 /home
 └── user
@@ -469,11 +493,39 @@ user@vfs20:$ tree -L 2 /home
 2 directories, 0 files
 user@vfs20:$ who
 max@Max
-  cwd:   /home/user/projects/vfs-shell
+  cwd:   /home/user
   shell: vfs-shell
 ```
 
-### 6.2. Error handling
+### 6.2. `mv` and `chmod` (stage 5)
+
+```
+user@vfs20:$ mv /var/log/app.log /var/log/app.log.bak
+user@vfs20:$ ls /var/log
+app.log.bak
+user@vfs20:$ mv /var/log/app.log.bak /home/user
+user@vfs20:$ ls /home/user
+projects  app.log.bak
+user@vfs20:$ chmod 600 /home/user/app.log.bak
+user@vfs20:$ ls -l /home/user
+drwxr-xr-x       0  projects
+-rw-------      10  app.log.bak
+user@vfs20:$ chmod u+x /home/user/app.log.bak
+user@vfs20:$ ls -l /home/user
+drwxr-xr-x       0  projects
+-rwx------      10  app.log.bak
+user@vfs20:$ chmod go-w /home/user/app.log.bak
+user@vfs20:$ chmod a=r /home/user/app.log.bak
+user@vfs20:$ ls -l /home/user
+drwxr-xr-x       0  projects
+-r--r--r--      10  app.log.bak
+user@vfs20:$ chmod 1777 /var
+user@vfs20:$ ls -l /
+drwxr-xr-x       0  home
+drwxrwxrwt       0  var
+```
+
+### 6.3. Error handling
 
 ```
 user@vfs20:$ cd a b
@@ -484,39 +536,27 @@ user@vfs20:$ ls "unterminated
 Parse error: unterminated quote
 user@vfs20:$ foo bar
 foo: command not found
+user@vfs20:$ mv /no/such /tmp
+mv: /no/such: no such path: /no/such
+user@vfs20:$ mv /home/user /home/user/projects
+mv: /home/user: cannot move a directory into itself
+user@vfs20:$ chmod 9x9 /home/user/app.log.bak
+chmod: invalid mode: 9x9
+user@vfs20:$ chmod 644 /no/such/file
+chmod: /no/such/file: no such path: /no/such/file
+user@vfs20:$ head /home/user
+head: /home/user: is a directory
 user@vfs20:$ exit
 Bye.
 ```
 
-### 6.3. Startup script
+### 6.4. Startup script
 
-`scripts/startup-all-commands.sh` covers all four stages:
+`scripts/startup-all-commands.sh` covers all stages, including
+successful and failing cases for `ls`, `cd`, `who`, `head`, `tree`,
+`mv` and `chmod`. Running it reproduces a complete dialogue.
 
-```bash
-# Startup script for stage 4 testing.
-ls
-ls -l /home/user
-ls -a /
-cd /
-cd /home/user
-cd "projects"
-cd /no/such/dir
-cd a b
-who
-head /home/user/notes.txt
-head -n 2 /home/user/notes.txt
-head /home/user
-tree /
-tree -L 2 /home
-tree /no/such/path
-ls "unterminated
-foo bar
-exit
-```
-
-Running it reproduces a complete dialogue, including errors.
-
-### 6.4. Configuration priority
+### 6.5. Configuration priority
 
 Given `configs/example.json`:
 
@@ -537,7 +577,7 @@ python3 -m src.main --vfs ignored.csv \
 resolves to `vfs_path = data/vfs-minimal.csv [file]` — the JSON file
 wins over the command line.
 
-### 6.5. Configuration errors
+### 6.6. Configuration errors
 
 ```
 $ python3 -m src.main --config /no/such.json
@@ -552,7 +592,7 @@ Startup error: startup script not found: /no/such.sh
 user@vfs20:$
 ```
 
-### 6.6. VFS datasets
+### 6.7. VFS datasets
 
 Successful load:
 
@@ -600,34 +640,7 @@ user@vfs20:$
 | 2     | Configuration: CLI + JSON + startup scripts         | done    | `stage-2` |
 | 3     | VFS: in-memory tree loaded from CSV                 | done    | `stage-3` |
 | 4     | Core commands: `ls`, `cd`, `who`, `head`, `tree`    | done    | `stage-4` |
-| 5     | Extra commands: `mv`, `chmod`                       | planned | — |
-
-Each stage is committed separately using Conventional Commits, e.g.:
-
-```
-feat(frontends): replace tkinter GUI with PyQt6
-feat(config): add CLI and JSON configuration with priority
-feat(startup): add startup script runner with comments
-feat(main): wire configuration and startup scripts
-chore(scripts): add host-side launchers and example config
-test(config): cover priority rules and script runner
-docs: describe stage 2 configuration and startup scripts
-feat(vfs): add in-memory VFS and CSV loader
-feat(shell): attach a VFS instance to the shell
-feat(main): load VFS at startup and report errors
-chore(data): add minimal, several-files and nested VFS datasets
-test(vfs): cover loading, navigation and error handling
-docs: describe VFS format, datasets and error handling
-refactor(commands): move commands into a package
-feat(commands): implement ls with -l, -a and -1 flags
-feat(commands): implement cd with relative and absolute paths
-feat(commands): add who command
-feat(commands): add head with -n flag and binary guard
-feat(commands): add tree with -L depth limit
-feat(shell): track cwd and dispatch through CommandContext
-test(commands): cover ls, cd, who, head and tree
-docs: describe stage 4 commands and their flags
-```
+| 5     | Extra commands: `mv`, `chmod`                       | done    | `stage-5` |
 
 ---
 
@@ -645,7 +658,6 @@ docs: describe stage 4 commands and their flags
   `main.py`. Frontends must not call `Shell.banner()` themselves.
 * Echo of the entered line is a frontend concern: the console relies
   on the terminal, the GUI prints it explicitly.
-* Each completed stage is tagged `stage-N` (`stage-1`, `stage-2`, …).
 
 ---
 
