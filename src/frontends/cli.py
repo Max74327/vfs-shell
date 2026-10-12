@@ -1,4 +1,4 @@
-"""Console frontend — works without GUI and without tkinter."""
+"""Console frontend — works without GUI."""
 import sys
 
 from src.frontends.base import Frontend
