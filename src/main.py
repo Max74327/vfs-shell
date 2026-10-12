@@ -4,6 +4,7 @@ import sys
 from src.config import ConfigError, format_debug, resolve_config
 from src.shell import Shell
 from src.startup import StartupError, run_startup
+from src.vfs import VfsError, load_vfs
 
 VFS_NAME = "vfs20"
 PROMPT = f"user@{VFS_NAME}:$ "
@@ -36,6 +37,16 @@ def _pick_frontend(cfg):
     return frontend
 
 
+def _load_vfs(cfg, frontend):
+    """Loads the VFS; on error reports and returns None."""
+    try:
+        vfs = load_vfs(cfg.vfs_path)
+    except VfsError as exc:
+        frontend.write(f"VFS error: {exc}")
+        return None
+    return vfs
+
+
 def _run_startup_script(frontend, cfg) -> bool:
     """Runs the startup script, if one was configured."""
     if not cfg.startup_script:
@@ -60,6 +71,17 @@ def main(argv=None) -> int:
     frontend.attach(shell)
 
     shell.write(format_debug(cfg))
+
+    vfs = _load_vfs(cfg, frontend)
+    if vfs is None:
+        # Load failed: keep the shell alive with an empty VFS.
+        from src.vfs import Vfs
+        vfs = Vfs()
+
+    shell.attach_vfs(vfs)
+    shell.write(f"VFS loaded: {cfg.vfs_path or '(empty)'} "
+                f"({vfs.size()} nodes)")
+
     shell.banner()
 
     if not _run_startup_script(frontend, cfg):

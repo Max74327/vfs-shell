@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 DEFAULT_CONFIG_PATH = "config.json"
 CONFIG_KEY_VFS_PATH = "vfs_path"
 CONFIG_KEY_STARTUP = "startup_script"
+DEFAULT_VFS_PATH = "data/vfs-minimal.csv"
 
 
 class ConfigError(Exception):
@@ -87,7 +88,8 @@ def resolve_config(argv=None) -> Config:
         file_data = _read_json(args.config)
 
     cfg.vfs_path, cfg.sources["vfs_path"] = _pick(
-        args.vfs, file_data.get(CONFIG_KEY_VFS_PATH),
+      args.vfs, file_data.get(CONFIG_KEY_VFS_PATH),
+      default=DEFAULT_VFS_PATH,
     )
     cfg.startup_script, cfg.sources["startup_script"] = _pick(
         args.startup, file_data.get(CONFIG_KEY_STARTUP),
