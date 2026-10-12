@@ -38,7 +38,6 @@ class Shell:
 
     def process(self, line: str) -> bool:
         """Processes one line; False means the shell should stop."""
-        self.write(self.prompt + line)
         try:
             name, args = parse(line)
         except ParseError as exc:

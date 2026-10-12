@@ -31,6 +31,7 @@ def run_startup(shell, path: str) -> bool:
     Returns False if the shell terminated during the script.
     """
     for line in read_script(path):
+        shell.write(shell.prompt + line)
         if not shell.process(line):
             return False
     return True
