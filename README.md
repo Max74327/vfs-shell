@@ -659,9 +659,3 @@ user@vfs20:$
   `main.py`. Frontends must not call `Shell.banner()` themselves.
 * Echo of the entered line is a frontend concern: the console relies
   on the terminal, the GUI prints it explicitly.
-
----
-
-## 9. License
-
-Distributed under the MIT License. See `LICENSE` for details.
