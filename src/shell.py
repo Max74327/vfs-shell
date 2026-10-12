@@ -1,7 +1,11 @@
 """Shell core: parsing, dispatch, output via a Frontend."""
 from src.parser import parse, ParseError
-from src.commands import COMMANDS, EXIT_SENTINEL
+from src.commands import (
+    COMMANDS, CommandContext, CommandResult, CommandError,
+)
 from src.frontends.base import Frontend
+
+ROOT_PATH = "/"
 
 
 class Shell:
@@ -11,6 +15,7 @@ class Shell:
         """Creates the core on top of the given frontend."""
         self.fe = frontend
         self.vfs = None
+        self.cwd = ROOT_PATH
 
     def attach_vfs(self, vfs) -> None:
         """Attaches the loaded VFS to the shell."""
@@ -47,10 +52,21 @@ class Shell:
             self.write(f"{name}: command not found")
             return True
 
-        result = handler(args)
-        if result == EXIT_SENTINEL:
+        ctx = CommandContext(vfs=self.vfs, cwd=self.cwd)
+        try:
+            result = handler(args, ctx)
+        except CommandError as exc:
+            self.write(str(exc))
+            return True
+
+        if not isinstance(result, CommandResult):
+            result = CommandResult(output=str(result))
+
+        if result.output:
+            self.write(result.output)
+        if result.new_cwd is not None:
+            self.cwd = result.new_cwd
+        if result.exit:
             self.write("Bye.")
             return False
-
-        self.write(result)
         return True
