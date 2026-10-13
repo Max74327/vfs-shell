@@ -76,7 +76,6 @@ def test_run_startup_stops_on_exit(tmp_path):
     shell = FakeShell(stop_after="exit")
     assert run_startup(shell, str(path)) is False
     assert shell.lines == ["ls", "exit"]
-    # echo also stops after the terminating line
     assert shell.echo == [
         "user@vfs20:$ ls",
         "user@vfs20:$ exit",
