@@ -56,6 +56,6 @@ def _format_file(node, flags: dict) -> str:
 def _format_long(node) -> str:
     """Formats one entry in ls -l style."""
     kind = "d" if node.is_dir else "-"
-    perm = format_mode(node)[1:]  # drop leading kind, we add it back
+    perm = format_mode(node)[1:]
     size = len(node.content) if not node.is_dir else 0
     return f"{kind}{perm}  {size:>6}  {node.name}"

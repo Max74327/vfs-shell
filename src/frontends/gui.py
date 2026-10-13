@@ -119,6 +119,6 @@ class GuiFrontend(Frontend):
         line = self.entry.text()
         self.entry.clear()
         self.entry.remember(line)
-        self.write(self.shell.prompt + line)   # ← новая строка: эхо
+        self.write(self.shell.prompt + line)
         if not self.shell.process(line):
             self.app.quit()

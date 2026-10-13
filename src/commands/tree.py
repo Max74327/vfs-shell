@@ -21,7 +21,7 @@ def cmd_tree(args: list, ctx: CommandContext) -> CommandResult:
     except VfsError as exc:
         raise CommandError(f"tree: {target}: {exc}") from exc
 
-    max_depth = flags.get("depth", 0)  # 0 = unlimited
+    max_depth = flags.get("depth", 0)
     lines = [path if path != "/" else "/"]
     stats = {"dirs": 0, "files": 0}
     _walk(ctx, node, "", max_depth, 1, lines, stats)

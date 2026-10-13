@@ -37,8 +37,6 @@ class Vfs:
         """Creates an empty VFS with a root directory."""
         self.root = Node(name="", is_dir=True, mode=DEFAULT_DIR_MODE)
 
-    # --- navigation -----------------------------------------------------
-
     def normalize(self, path: str) -> str:
         """Normalises a path: absolute, no trailing slash, no '..'."""
         if not path:
@@ -67,8 +65,6 @@ class Vfs:
                 raise VfsError(f"no such path: {path}")
             node = node.children[part]
         return node
-
-    # --- mutation -------------------------------------------------------
 
     def mkdir(self, path: str, mode: int = DEFAULT_DIR_MODE) -> Node:
         """Creates a directory (and its parents) if missing."""
@@ -101,8 +97,6 @@ class Vfs:
         parent.children[name] = node
         return node
 
-    # --- listing --------------------------------------------------------
-
     def listdir(self, path: str) -> list:
         """Returns the sorted children of a directory node."""
         node = self.find(path)
@@ -130,8 +124,6 @@ class Vfs:
             cur = cur.parent
         return ROOT_PATH + "/".join(reversed([p for p in parts if p]))
 
-    # --- persistence ----------------------------------------------------
-
     def size(self) -> int:
         """Returns the number of nodes in the tree (excluding root)."""
         return self._count(self.root)
@@ -158,7 +150,6 @@ class Vfs:
         node = self.find(src_norm)
         dst_norm = self.normalize(dst)
 
-        # If destination is an existing directory, move inside it.
         try:
             existing = self.find(dst_norm)
             if existing.is_dir:
@@ -172,7 +163,6 @@ class Vfs:
         if node.is_dir:
             self._reject_move_into_self(node, dst_norm)
 
-        # Remove existing target if it is a file.
         try:
             target = self.find(dst_norm)
             if target.is_dir:
@@ -181,11 +171,9 @@ class Vfs:
         except VfsError:
             pass
 
-        # Detach from the old parent.
         old_parent = node.parent
         del old_parent.children[node.name]
 
-        # Attach to the new parent.
         parent_path, _, new_name = dst_norm.rpartition(ROOT_PATH)
         new_parent = self.mkdir(parent_path or ROOT_PATH)
         node.name = new_name

@@ -76,9 +76,8 @@ def human_mode(node: Node) -> str:
     for shift, char in ((6, "r"), (5, "w"), (4, "x"),
                         (3, "r"), (2, "w"), (1, "x"),
                         (0, "r"), (None, None)):
-        pass  # placeholder, real loop below
+        pass
 
-    # Simple, explicit, no magic:
     def trio(base: int) -> str:
         s = ""
         s += "r" if bits & (4 << base) else "-"

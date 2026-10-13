@@ -22,7 +22,6 @@ def cmd_chmod(args: list, ctx: CommandContext) -> CommandResult:
     if len(args) < 2:
         raise CommandError("chmod: missing operand")
     mode_expr, *targets = args
-    # Validate the mode before touching any target.
     _validate_mode(mode_expr)
     for target in targets:
         _apply_to_target(mode_expr, target, ctx)
@@ -71,7 +70,6 @@ def _apply_symbolic(current: int, expr: str) -> int:
         return current | mask
     if op == "-":
         return current & ~mask
-    # op == '='
     cleared = current
     for group in who:
         group_mask = sum(PERM_BITS[group].values())
